@@ -94,5 +94,18 @@ tables_config = [
         },
         'chunk_size': 100000,
         'num_chunks_per_file': 10
+    },
+    {
+      'name': 'sourcify_matches',
+        'datatypes': {
+            'id': 'Int64',
+            'verified_contract_id': 'Int64',
+            'creation_match': 'string',
+            'runtime_match': 'string',
+            'created_at': 'datetime64[ns]',
+            'metadata': 'json'
+        },
+        'chunk_size': 10000,
+        'num_chunks_per_file': 10
     }
 ]
