@@ -1,10 +1,9 @@
-# VerA DB Parquet Export Script
+# VerA DB Parquet Export Script - Sourcify fork
 
 Python scripts and Docker container to export the Verifier Alliance PostgreSQL database in Parquet format and upload it to an S3 bucket.
+This fork provides a modified config to comply with the Sourcify database - which uses a modification of the Verifier Alliance database schema itself.
 
-Warning: The script likely has some memory leak issues and needs some refinement. Still, does the job.
-
-The latest export is available on [Cloudflare R2](https://pub-f4b5a1306ebd42a3b1289ab59da1d9bf.r2.dev/manifest.json). Bear in mind the data is not production-ready and contains many mistakes. We've laid out some of the problems [in this document](https://efdn.notion.site/VerA-DB-Problems-and-Changes-9a6873b2c0cc4b9c9cb04c82f6a0745b?pvs=4)
+The latest export is available on [Cloudflare R2](https://pub-8abcaa546ea44889a3617c7708f71610.r2.dev/manifest.json).
 
 ## Requirements
 
@@ -105,11 +104,11 @@ The script also generates a `manifest.json` that contains a timestamp when the d
 Build the image:
 
 ```
-docker build --tag=kuzdogan/test-parquet-linux --platform=linux/amd64 .
+docker build --tag=sourcify/parquet-export --platform=linux/amd64 .
 ```
 
 Publish:
 
 ```
-docker push kuzdogan/test-parquet-linux
+docker push sourcify/parquet-export
 ```
