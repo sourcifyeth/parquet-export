@@ -3,7 +3,7 @@
 Python scripts and Docker container to export the Verifier Alliance PostgreSQL database in Parquet format and upload it to an S3 bucket.
 This fork provides a modified config to comply with the Sourcify database - which uses a modification of the Verifier Alliance database schema itself.
 
-The latest export is available on [Cloudflare R2](https://pub-8abcaa546ea44889a3617c7708f71610.r2.dev/manifest.json).
+The latest export is available on [Cloudflare R2](https://export.sourcify.app/manifest.json).
 
 ## Requirements
 
