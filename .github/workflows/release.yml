@@ -4,15 +4,16 @@ on:
   push:
     branches:
       - main
+      - staging
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: verifier-alliance/parquet-export
-  GCP_PROJECT: verifier-alliance
-  WORKLOAD_IDENTITY_PROVIDER: projects/1064646032521/locations/global/workloadIdentityPools/github-actions/providers/vera-github-actions
-  SERVICE_ACCOUNT: vera-cloud-run-deployer@verifier-alliance.iam.gserviceaccount.com
-  JOB_NAME: parquet-export-${{ github.ref_name }}
-  REGION: europe-west3
+  IMAGE_NAME: sourcifyeth/parquet-export
+  GCP_PROJECT: sourcify-project
+  WORKLOAD_IDENTITY_PROVIDER: projects/1019539084286/locations/global/workloadIdentityPools/github/providers/sourcify
+  SERVICE_ACCOUNT: sourcify-cloud-run-deployer@sourcify-project.iam.gserviceaccount.com
+  JOB_NAME: sourcify-${{ github.ref_name == 'main' && 'production' || github.ref_name }}-parquet-export
+  REGION: europe-west1
   GCP_REPOSITORY: ghcr
 
 jobs:
