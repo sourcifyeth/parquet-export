@@ -127,6 +127,7 @@ tables_config = [
             'creation_match': 'string',
             'runtime_match': 'string',
             'created_at': 'datetime64[ns]',
+            'updated_at': 'datetime64[ns]',
             'metadata': 'json'
         },
         'chunk_size': 10000,
