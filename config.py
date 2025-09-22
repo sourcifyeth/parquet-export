@@ -132,5 +132,28 @@ tables_config = [
         },
         'chunk_size': 10000,
         'num_chunks_per_file': 10
-    }
+    },
+    {
+        'name': 'signatures',
+        'datatypes': {
+            'signature_hash_32': 'object',
+            'signature_hash_4': 'object',
+            'signature': 'string',
+            'created_at': 'datetime64[ns]'
+        },
+        'chunk_size': 100000,
+        'num_chunks_per_file': 10
+    },
+    {
+        'name': 'compiled_contracts_signatures',
+        'datatypes': {
+            'id': 'string',
+            'compilation_id': 'string',
+            'signature_hash_32': 'object',
+            'signature_type': 'string',
+            'created_at': 'datetime64[ns]'
+        },
+        'chunk_size': 100000,
+        'num_chunks_per_file': 10
+    },
 ]
