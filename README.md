@@ -3,7 +3,7 @@
 Python scripts and Docker container to export the Verifier Alliance PostgreSQL database in Parquet format and upload it to an S3 bucket.
 This fork provides a modified config to comply with the Sourcify database - which uses a modification of the Verifier Alliance database schema itself.
 
-The latest export is available on [Cloudflare R2](https://export.sourcify.app/manifest.json).
+The latest export is available at [https://export.sourcify.dev](https://export.sourcify.dev).
 
 ## Requirements
 
@@ -39,10 +39,21 @@ python main.py
 
 The script takes some additional env vars for debugging purposes:
 
+- `DEBUG`: Enables debug logging, reduces chunk sizes by 100x, processes only 1 file per table, and skips GCS upload
 - `DEBUG_TABLE`: The name of the table to dump solely. Skips other tables.
 - `DEBUG_OFFSET`: Will add an offset to the `SELECT` queries `"SELECT * FROM {table_name} OFFSET {os.getenv('DEBUG_OFFSET')}"`
 
 The rest of the env vars can be found in the `.env-template` file. Copy the .env-template file to `.env` and fill in the values.
+
+### Authentication
+
+For local development, set the `GOOGLE_APPLICATION_CREDENTIALS` environment variable to point to your service account key JSON file:
+
+```bash
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
+```
+
+In Cloud Run, authentication is automatic via Workload Identity.
 
 The [config.py](./config.py) file contains the configuration for each database table about the chunk sizes and number of chunks per file, and the datatypes for each column in the table.
 
@@ -75,7 +86,7 @@ This config gives `10,000 * 10 = 100,000` rows per file.
 
 The files will be named `verified_contracts_0_100000_zstd.parquet` and `verified_contracts_100000_200000_zstd.parquet` etc. (`zstd` is the compression algorithm).
 
-The script also generates a `manifest.json` that contains a timestamp when the dump is created, and the list of files to access them in the S3 bucket.
+The script also generates a `manifest.json` that contains a timestamp when the dump is created, and the list of files uploaded to Google Cloud Storage.
 
 ```json
 {
