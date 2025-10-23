@@ -7,11 +7,10 @@ from sqlalchemy.engine import Engine
 from dotenv import load_dotenv
 from config import tables_config
 from google.cloud.sql.connector import Connector, IPTypes
+from google.cloud import storage
 import time
 import logging
 import pg8000
-import boto3
-from botocore.exceptions import NoCredentialsError, PartialCredentialsError
 import json
 from datetime import datetime 
 
@@ -152,28 +151,29 @@ def get_pyarrow_type(dt):
 def get_pyarrow_schema(dtypes):
     return pa.schema([pa.field(col, get_pyarrow_type(dt)) for col, dt in dtypes.items()])
 
-def upload_to_s3(file_path, bucket_name, object_name):
-    logger.info(f"Uploading {object_name} to S3")
+def upload_to_gcs(file_path, bucket_name, object_name):
+    logger.info(f"Uploading {object_name} to GCS")
     if os.getenv("DEBUG"):
-        logger.debug("DEBUG: NOT uploading to S3 in DEBUG mode")
+        logger.debug("DEBUG: NOT uploading to GCS in DEBUG mode")
         return
-    s3_client = boto3.client(
-        's3',
-        endpoint_url=os.getenv('S3_ENDPOINT_URL'),
-        aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
-        aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY')
-    )
+
     try:
-        s3_client.upload_file(file_path, bucket_name, object_name)
-        logger.info(f"Successfully uploaded {file_path} to {bucket_name}/{object_name}")
+        # Initialize GCS client (uses Application Default Credentials or GOOGLE_APPLICATION_CREDENTIALS)
+        client = storage.Client()
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(object_name)
+
+        # Upload the file
+        blob.upload_from_filename(file_path)
+        logger.info(f"Successfully uploaded {file_path} to gs://{bucket_name}/{object_name}")
         os.remove(file_path)
         logger.info(f"Deleted local file {file_path}")
+
     except FileNotFoundError:
         logger.error(f"The file {file_path} was not found")
-    except NoCredentialsError:
-        logger.error("Credentials not available")
-    except PartialCredentialsError:
-        logger.error("Incomplete credentials provided")
+    except Exception as e:
+        logger.error(f"Error uploading to GCS: {e}")
+        raise
 
 def fetch_and_write(table_config, engine):
     postgres_schema_name = os.getenv('DB_SCHEMA')
@@ -233,9 +233,9 @@ def fetch_and_write(table_config, engine):
                 writer.close()
                 logger.info(f"Written {output_file}")
 
-                # Upload the file to S3
+                # Upload the file to GCS
                 object_name = f"{table_name}/{output_file}"
-                upload_to_s3(output_file, os.getenv('S3_BUCKET_NAME'), object_name)
+                upload_to_gcs(output_file, os.getenv('GCS_BUCKET_NAME'), object_name)
 
                 # Append the file to the uploaded files list to be written to the manifest.json
                 if table_name not in uploaded_files:
@@ -252,10 +252,10 @@ def fetch_and_write(table_config, engine):
         if writer is not None:
             writer.close()
             logger.info(f"Written {output_file}")
-            
-            # Upload the file to S3
+
+            # Upload the file to GCS
             object_name = f"{table_name}/{output_file}"
-            upload_to_s3(output_file, os.getenv('S3_BUCKET_NAME'), object_name)
+            upload_to_gcs(output_file, os.getenv('GCS_BUCKET_NAME'), object_name)
             
             # Append the file to the uploaded files list to be written to the manifest.json
             if table_name not in uploaded_files:
@@ -279,4 +279,4 @@ if __name__ == "__main__":
             logger.info(f"Fetching and writing table: {table_config['name']}")
             fetch_and_write(table_config, engine)
     write_manifest()  # Write the manifest file after processing all tables
-    upload_to_s3('manifest.json', os.getenv('S3_BUCKET_NAME'), 'manifest.json')
+    upload_to_gcs('manifest.json', os.getenv('GCS_BUCKET_NAME'), 'manifest.json')
