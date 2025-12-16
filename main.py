@@ -197,9 +197,9 @@ def fetch_and_write(table_config, engine):
     with engine.connect().execution_options(stream_results=True) as connection:
 
 
-        query = text(f"SELECT * FROM {postgres_schema_name}.{table_name}")
+        query = text(f"SELECT * FROM {postgres_schema_name}.{table_name} ORDER BY created_at ASC")
         if os.getenv('DEBUG_OFFSET'):
-            query = text(f"SELECT * FROM {postgres_schema_name}.{table_name} OFFSET {os.getenv('DEBUG_OFFSET')}")
+            query = text(f"SELECT * FROM {postgres_schema_name}.{table_name} ORDER BY created_at ASC OFFSET {os.getenv('DEBUG_OFFSET')}")
         logger.info(f"Executing query for table {table_name}: {query}")
 
         start_time = time.time()
