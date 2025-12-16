@@ -152,6 +152,7 @@ def get_pyarrow_schema(dtypes):
     return pa.schema([pa.field(col, get_pyarrow_type(dt)) for col, dt in dtypes.items()])
 
 def upload_to_gcs(file_path, bucket_name, object_name):
+    object_name = f'v2/{object_name}'
     logger.info(f"Uploading {object_name} to GCS")
     if os.getenv("DEBUG"):
         logger.debug("DEBUG: NOT uploading to GCS in DEBUG mode")
