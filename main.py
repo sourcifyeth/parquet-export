@@ -12,13 +12,9 @@ import time
 import logging
 import pg8000
 import json
-from datetime import datetime 
 
 # Load environment variables from .env file
 load_dotenv()
-
-# Global dictionary to store uploaded files. To be written to the manifest.json
-uploaded_files = {}
 
 compression = 'zstd'
 
@@ -98,19 +94,6 @@ def get_output_file(table_name, compression):
 
 def convert_memoryview_to_bytes(data):
     return data.tobytes() if isinstance(data, memoryview) else data
-
-def write_manifest():
-    timestamp = int(datetime.now().timestamp() * 1000)
-    date_str = datetime.now().isoformat() + "Z"
-    manifest = {
-        "timestamp": timestamp,
-        "dateStr": date_str,
-        "files": uploaded_files
-    }
-    with open('manifest.json', 'w') as f:
-        json.dump(manifest, f, indent=2)
-    logger.info("Manifest file written successfully.")
-
 
 def process_df(df, dtypes):
     for col in ['created_at', 'updated_at']:
@@ -238,11 +221,6 @@ def fetch_and_write(table_config, engine):
                 object_name = f"{table_name}/{output_file}"
                 upload_to_gcs(output_file, os.getenv('GCS_BUCKET_NAME'), object_name)
 
-                # Append the file to the uploaded files list to be written to the manifest.json
-                if table_name not in uploaded_files:
-                    uploaded_files[table_name] = []
-                uploaded_files[table_name].append(object_name)
-
                 file_counter += 1
                 chunk_counter = 0
                 writer = None  # Reset the writer for the next file
@@ -257,11 +235,6 @@ def fetch_and_write(table_config, engine):
             # Upload the file to GCS
             object_name = f"{table_name}/{output_file}"
             upload_to_gcs(output_file, os.getenv('GCS_BUCKET_NAME'), object_name)
-            
-            # Append the file to the uploaded files list to be written to the manifest.json
-            if table_name not in uploaded_files:
-                uploaded_files[table_name] = []
-            uploaded_files[table_name].append(object_name)
 
 
 if __name__ == "__main__":
@@ -279,5 +252,3 @@ if __name__ == "__main__":
         for table_config in tables_config:
             logger.info(f"Fetching and writing table: {table_config['name']}")
             fetch_and_write(table_config, engine)
-    write_manifest()  # Write the manifest file after processing all tables
-    upload_to_gcs('manifest.json', os.getenv('GCS_BUCKET_NAME'), 'manifest.json')

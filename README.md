@@ -85,30 +85,6 @@ This config gives `10,000 * 10 = 100,000` rows per file.
 
 The files will be named `verified_contracts_0_100000_zstd.parquet` and `verified_contracts_100000_200000_zstd.parquet` etc. (`zstd` is the compression algorithm).
 
-The script also generates a `manifest.json` that contains a timestamp when the dump is created, and the list of files uploaded to Google Cloud Storage.
-
-```json
-{
-  "timestamp": 1718042395518,
-  "dateStr": "2024-06-10T17:59:55.518972Z",
-  "files": {
-    "code": [
-      "code/code_0_100000_zstd.parquet",
-      "code/code_100000_200000_zstd.parquet",
-      "code/code_200000_300000_zstd.parquet",
-      "code/code_300000_400000_zstd.parquet",
-      "code/code_400000_500000_zstd.parquet",
-      "code/code_500000_600000_zstd.parquet",
-      "code/code_600000_700000_zstd.parquet",
-      "code/code_700000_800000_zstd.parquet"
-    ],
-    "contract_deployments": [...],
-    "compiled_contracts": [...],
-    "verified_contracts": [...]
-  }
-}
-```
-
 ## Docker
 
 Build the image:
