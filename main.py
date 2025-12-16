@@ -86,11 +86,8 @@ def create_sqlalchemy_engine() -> Engine:
         engine = create_engine(connection_string)
     return engine
 
-def get_output_file(table_name, compression):
-    if compression:
-        return f"{table_name}_{compression}.parquet"
-    else:
-        return f"{table_name}.parquet"
+def get_output_file(file_name):
+    return f"{file_name}.parquet"
 
 def convert_memoryview_to_bytes(data):
     return data.tobytes() if isinstance(data, memoryview) else data
@@ -159,9 +156,81 @@ def upload_to_gcs(file_path, bucket_name, object_name):
         logger.error(f"Error uploading to GCS: {e}")
         raise
 
+def get_newest_file_from_gcs(table_name, bucket_name):
+    """
+    Find the newest file for a given table in GCS based on last modified timestamp.
+    Returns blob_name (full path) or None if no files exist.
+    """
+    logger.info(f"Searching for newest file in GCS for table: {table_name}")
+
+    try:
+        client = storage.Client()
+        bucket = client.bucket(bucket_name)
+
+        # List all blobs in the table's directory (under v2/)
+        prefix = f"v2/{table_name}/"
+        blobs = list(bucket.list_blobs(prefix=prefix))
+
+        if not blobs:
+            logger.info(f"No existing files found in GCS for table {table_name}")
+            return None
+
+        # Find the blob with the latest updated timestamp
+        newest_blob = max(blobs, key=lambda b: b.updated)
+        logger.info(f"Found newest file: {newest_blob.name} (updated: {newest_blob.updated})")
+
+        return newest_blob.name
+
+    except Exception as e:
+        logger.error(f"Error finding newest file in GCS: {e}")
+        raise
+
+def download_and_read_first_row(blob_name, bucket_name, primary_key):
+    """
+    Download a Parquet file from GCS, read the first row to extract (created_at, primary_key_value),
+    then delete the local file. This determines where the file starts for regenerating it.
+    Returns (created_at_timestamp, primary_key_value) tuple.
+    """
+    logger.info(f"Downloading {blob_name} from GCS to read first row")
+    local_file = f"temp_{blob_name.split('/')[-1]}"
+    
+    try:
+        client = storage.Client()
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(blob_name)
+
+        # Download to a temporary local file
+        blob.download_to_filename(local_file)
+        logger.info(f"Downloaded {blob_name} to {local_file}")
+
+        # Read the Parquet file
+        table = pq.read_table(local_file)
+        df = table.to_pandas()
+
+        # Get the first row to determine where this file starts (for regenerating the entire file)
+        first_row = df.iloc[0]
+        created_at = first_row['created_at']
+        primary_key_value = first_row[primary_key]
+
+        logger.info(f"First row: created_at={created_at}, {primary_key}={primary_key_value}")
+
+        # Delete the temporary file
+        os.remove(local_file)
+        logger.info(f"Deleted temporary file {local_file}")
+
+        return created_at, primary_key_value
+
+    except Exception as e:
+        logger.error(f"Error downloading and reading file from GCS: {e}")
+        # Clean up temp file if it exists
+        if os.path.exists(local_file):
+            os.remove(local_file)
+        raise
+
 def fetch_and_write(table_config, engine):
     postgres_schema_name = os.getenv('DB_SCHEMA')
     table_name = table_config['name']
+    primary_key = table_config['primary_key']
     dtypes = table_config['datatypes']
     schema = get_pyarrow_schema(dtypes)
     chunk_size = table_config['chunk_size']
@@ -176,14 +245,48 @@ def fetch_and_write(table_config, engine):
     file_counter = 0
     writer = None
 
+    # Check for existing files in GCS to enable append-only export
+    bucket_name = os.getenv('GCS_BUCKET_NAME')
+    newest_blob_name = get_newest_file_from_gcs(table_name, bucket_name)
+
+    resume_from_created_at = None
+    resume_from_pk = None
+
+    if newest_blob_name:
+        # Extract the filename from the full blob path and parse it
+        # Format: table_name/table_name_start_end.parquet
+        newest_file_name = newest_blob_name.split('/')[-1]
+        parts = newest_file_name.replace(f"{table_name}_", "").replace(".parquet", "").split("_")
+        start_row = int(parts[0])
+        file_counter = start_row // rows_per_file
+
+        logger.info(f"Resuming from file: {newest_file_name}, file_counter: {file_counter}")
+
+        # Download and read the first row to get checkpoint
+        resume_from_created_at, resume_from_pk = download_and_read_first_row(newest_blob_name, bucket_name, primary_key)
+        logger.info(f"Resume checkpoint: created_at={resume_from_created_at}, {primary_key}={resume_from_pk}")
+
     # Use stream_results=True to fetch data in chunks
     logger.info(f"Connecting to the DB for the table: {table_name}")
     with engine.connect().execution_options(stream_results=True) as connection:
 
+        # Build query with composite ordering and optional WHERE clause for resuming
+        if resume_from_created_at is not None:
+            # Query for append-only: WHERE (created_at > ?) OR (created_at = ? AND primary_key >= ?)
+            query = text(f"""
+                SELECT * FROM {postgres_schema_name}.{table_name}
+                WHERE (created_at > :created_at) OR (created_at = :created_at AND {primary_key} >= :pk_value)
+                ORDER BY created_at ASC, {primary_key} ASC
+            """)
+            query = query.bindparams(created_at=resume_from_created_at, pk_value=resume_from_pk)
+        else:
+            # Full export from the beginning
+            query = text(f"SELECT * FROM {postgres_schema_name}.{table_name} ORDER BY created_at ASC, {primary_key} ASC")
 
-        query = text(f"SELECT * FROM {postgres_schema_name}.{table_name} ORDER BY created_at ASC")
         if os.getenv('DEBUG_OFFSET'):
-            query = text(f"SELECT * FROM {postgres_schema_name}.{table_name} ORDER BY created_at ASC OFFSET {os.getenv('DEBUG_OFFSET')}")
+            # Override with debug offset if set
+            query = text(f"SELECT * FROM {postgres_schema_name}.{table_name} ORDER BY created_at ASC, {primary_key} ASC OFFSET {os.getenv('DEBUG_OFFSET')}")
+
         logger.info(f"Executing query for table {table_name}: {query}")
 
         start_time = time.time()
@@ -202,8 +305,8 @@ def fetch_and_write(table_config, engine):
             chunk_table = pa.Table.from_pandas(df, schema=schema) # Convert the dataframe to a PyArrow table
 
             if writer is None:
-                # file name: contracts_0_10000_zstd.parquet, contracts_10000_20000_zstd.parquet, etc.
-                output_file = get_output_file(f"{table_name}_{file_counter * rows_per_file}_{(file_counter + 1) * rows_per_file}", compression)
+                # file name: contracts_0_10000.parquet, contracts_10000_20000.parquet, etc.
+                output_file = get_output_file(f"{table_name}_{file_counter * rows_per_file}_{(file_counter + 1) * rows_per_file}")
                 writer = pq.ParquetWriter(output_file, chunk_table.schema, compression=compression)
 
             logger.info(f"Writing chunk {chunk_counter} of file {file_counter} to {output_file}")
