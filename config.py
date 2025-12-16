@@ -78,7 +78,8 @@ tables_config = [
             'id': 'string',
             'compilation_id': 'string',
             'source_hash': 'object',
-            'path': 'string'
+            'path': 'string',
+            'created_at': 'datetime64[ns]',
         },
         'chunk_size': 100000,
         'num_chunks_per_file': 10
