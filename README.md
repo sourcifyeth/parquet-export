@@ -106,7 +106,7 @@ This config gives `100,000 * 10 = 1,000,000` rows per file.
 
 The files will be named `verified_contracts_0_1000000.parquet`, `verified_contracts_1000000_2000000.parquet`, etc.
 
-Files are stored in GCS under the `v2/{table_name}/` prefix.
+Files are stored in GCS under the `v2/{table_name}/` prefix and compressed using zstd.
 
 ## Docker
 

@@ -238,7 +238,6 @@ def fetch_and_write(table_config, engine):
         logger.debug(f"DEBUG: Setting chunk_size to 1/100 of {chunk_size} = {chunk_size // 100}")
         chunk_size = chunk_size // 100
 
-    compression = table_config.get('compression', None)
     num_chunks_per_file = table_config['num_chunks_per_file']
     rows_per_file = chunk_size * num_chunks_per_file
     chunk_counter = 0
