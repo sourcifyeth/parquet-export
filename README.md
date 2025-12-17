@@ -36,6 +36,17 @@ Run the script with:
 python main.py
 ```
 
+The script automatically detects existing files in GCS and performs **append-only exports**:
+
+- **First run**: Exports all data from the database
+- **Subsequent runs**:
+  - Finds the newest file in GCS for each table
+  - Downloads it and reads the first row to determine the checkpoint
+  - Regenerates the last file completely (in case it was incomplete)
+  - Exports only new data that arrived since that checkpoint
+
+### Debugging
+
 The script takes some additional env vars for debugging purposes:
 
 - `DEBUG`: Enables debug logging, reduces chunk sizes by 100x, processes only 1 file per table, and skips GCS upload
@@ -54,13 +65,21 @@ export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
 
 In Cloud Run, authentication is automatic via Workload Identity.
 
-The [config.py](./config.py) file contains the configuration for each database table about the chunk sizes and number of chunks per file, and the datatypes for each column in the table.
+### Configuration
+
+The [config.py](./config.py) file contains the configuration for each database table including:
+
+- `primary_key`: The primary key column name (used for append-only ordering)
+- `datatypes`: Column type mappings for proper Parquet schema generation
+- `chunk_size`: Number of rows to fetch per database query
+- `num_chunks_per_file`: Number of chunks to write per Parquet file
 
 Example:
 
-```js
-  {
+```python
+{
     'name': 'verified_contracts',
+    'primary_key': 'id',
     'datatypes': {
         'id': 'Int64',
         'created_at': 'datetime64[ns]',
@@ -70,20 +89,24 @@ Example:
         'deployment_id': 'string',
         'compilation_id': 'string',
         'creation_match': 'bool',
-        'creation_values': 'string',
-        'creation_transformations': 'string',
+        'creation_values': 'json',
+        'creation_transformations': 'json',
         'runtime_match': 'bool',
-        'runtime_values': 'string',
-        'runtime_transformations': 'string'
+        'runtime_values': 'json',
+        'runtime_transformations': 'json',
+        'runtime_metadata_match': 'bool',
+        'creation_metadata_match': 'bool'
     },
-    'chunk_size': 10000,
+    'chunk_size': 100000,
     'num_chunks_per_file': 10
-  }
+}
 ```
 
-This config gives `10,000 * 10 = 100,000` rows per file.
+This config gives `100,000 * 10 = 1,000,000` rows per file.
 
-The files will be named `verified_contracts_0_100000_zstd.parquet` and `verified_contracts_100000_200000_zstd.parquet` etc. (`zstd` is the compression algorithm).
+The files will be named `verified_contracts_0_1000000.parquet`, `verified_contracts_1000000_2000000.parquet`, etc.
+
+Files are stored in GCS under the `v2/{table_name}/` prefix.
 
 ## Docker
 
