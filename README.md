@@ -4,6 +4,8 @@ Python scripts and Docker container to export the Verifier Alliance PostgreSQL d
 
 The latest export is publicly available at [https://export.verifieralliance.org](https://export.verifieralliance.org).
 
+The export script has undergone a redesign which made it append-only. The new export format is referred to as "v2". See https://github.com/argotorg/sourcify/issues/2441 for details of the redesign.
+
 ## Requirements
 
 - Python 3
@@ -121,3 +123,11 @@ Publish:
 ```
 docker push kuzdogan/test-parquet-linux
 ```
+
+## Metadata
+
+Previously, the export script generated a `manifest.json` file containing metadata about the export. This is no longer generated, as we now rely on the Google Cloud Storage API for metadata.
+
+For example, this API endpoint lists all available export v2 files with their metadata in XML:
+
+https://export.test.verifieralliance.org/?prefix=v2/
