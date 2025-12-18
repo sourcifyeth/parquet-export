@@ -48,7 +48,7 @@ def get_google_conn() -> pg8000.dbapi.Connection:
             "pg8000",
             user=os.getenv('DB_USER'),
             password=os.getenv('DB_PASSWORD'),
-            db=os.getenv('DB_NAME'), 
+            db=os.getenv('DB_NAME'),
             ip_type=IPTypes.PUBLIC
         )
         logger.info("Successfully created Google Cloud SQL connection")
@@ -265,16 +265,24 @@ def fetch_and_write(table_config, engine):
         resume_from_created_at, resume_from_pk = download_and_read_first_row(newest_blob_name, bucket_name, primary_key)
         logger.info(f"Resume checkpoint: created_at={resume_from_created_at}, {primary_key}={resume_from_pk}")
 
+    # Determine if primary key needs UUID casting (when dtype is 'string', it's a UUID in the database)
+    pk_is_uuid = dtypes.get(primary_key) == 'string'
+
     # Use stream_results=True to fetch data in chunks
     logger.info(f"Connecting to the DB for the table: {table_name}")
     with engine.connect().execution_options(stream_results=True) as connection:
 
         # Build query with composite ordering and optional WHERE clause for resuming
         if resume_from_created_at is not None:
+            if pk_is_uuid:
+                pk_comparison = f"{primary_key} >= :pk_value::uuid"
+            else:
+                pk_comparison = f"{primary_key} >= :pk_value"
+
             # Query for append-only: WHERE (created_at > ?) OR (created_at = ? AND primary_key >= ?)
             query = text(f"""
                 SELECT * FROM {postgres_schema_name}.{table_name}
-                WHERE (created_at > :created_at) OR (created_at = :created_at AND {primary_key} >= :pk_value)
+                WHERE (created_at > :created_at) OR (created_at = :created_at AND {pk_comparison})
                 ORDER BY created_at ASC, {primary_key} ASC
             """)
             query = query.bindparams(created_at=resume_from_created_at, pk_value=resume_from_pk)
