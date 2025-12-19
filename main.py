@@ -185,15 +185,15 @@ def get_newest_file_from_gcs(table_name, bucket_name):
         logger.error(f"Error finding newest file in GCS: {e}")
         raise
 
-def download_and_read_first_row(blob_name, bucket_name, primary_key):
+def download_and_read_first_row(blob_name, bucket_name, order_by_column, primary_key):
     """
-    Download a Parquet file from GCS, read the first row to extract (created_at, primary_key_value),
+    Download a Parquet file from GCS, read the first row to extract (order_by_value, primary_key_value),
     then delete the local file. This determines where the file starts for regenerating it.
-    Returns (created_at_timestamp, primary_key_value) tuple.
+    Returns (order_by_value, primary_key_value) tuple.
     """
     logger.info(f"Downloading {blob_name} from GCS to read first row")
     local_file = f"temp_{blob_name.split('/')[-1]}"
-    
+
     try:
         client = storage.Client()
         bucket = client.bucket(bucket_name)
@@ -209,16 +209,16 @@ def download_and_read_first_row(blob_name, bucket_name, primary_key):
 
         # Get the first row to determine where this file starts (for regenerating the entire file)
         first_row = df.iloc[0]
-        created_at = first_row['created_at']
+        order_by_value = first_row[order_by_column]
         primary_key_value = first_row[primary_key]
 
-        logger.info(f"First row: created_at={created_at}, {primary_key}={primary_key_value}")
+        logger.info(f"First row: {order_by_column}={order_by_value}, {primary_key}={primary_key_value}")
 
         # Delete the temporary file
         os.remove(local_file)
         logger.info(f"Deleted temporary file {local_file}")
 
-        return created_at, primary_key_value
+        return order_by_value, primary_key_value
 
     except Exception as e:
         logger.error(f"Error downloading and reading file from GCS: {e}")
@@ -231,6 +231,7 @@ def fetch_and_write(table_config, engine):
     postgres_schema_name = os.getenv('DB_SCHEMA')
     table_name = table_config['name']
     primary_key = table_config['primary_key']
+    order_by_column = table_config['order_by']
     dtypes = table_config['datatypes']
     schema = get_pyarrow_schema(dtypes)
     chunk_size = table_config['chunk_size']
@@ -248,7 +249,7 @@ def fetch_and_write(table_config, engine):
     bucket_name = os.getenv('GCS_BUCKET_NAME')
     newest_blob_name = get_newest_file_from_gcs(table_name, bucket_name)
 
-    resume_from_created_at = None
+    resume_from_order_by = None
     resume_from_pk = None
 
     if newest_blob_name:
@@ -262,8 +263,8 @@ def fetch_and_write(table_config, engine):
         logger.info(f"Resuming from file: {newest_file_name}, file_counter: {file_counter}")
 
         # Download and read the first row to get checkpoint
-        resume_from_created_at, resume_from_pk = download_and_read_first_row(newest_blob_name, bucket_name, primary_key)
-        logger.info(f"Resume checkpoint: created_at={resume_from_created_at}, {primary_key}={resume_from_pk}")
+        resume_from_order_by, resume_from_pk = download_and_read_first_row(newest_blob_name, bucket_name, order_by_column, primary_key)
+        logger.info(f"Resume checkpoint: {order_by_column}={resume_from_order_by}, {primary_key}={resume_from_pk}")
 
     # Determine if primary key needs UUID casting (when dtype is 'string', it's a UUID in the database)
     pk_is_uuid = dtypes.get(primary_key) == 'string'
@@ -273,26 +274,26 @@ def fetch_and_write(table_config, engine):
     with engine.connect().execution_options(stream_results=True) as connection:
 
         # Build query with composite ordering and optional WHERE clause for resuming
-        if resume_from_created_at is not None:
+        if resume_from_order_by is not None:
             if pk_is_uuid:
                 pk_comparison = f"{primary_key} >= :pk_value::uuid"
             else:
                 pk_comparison = f"{primary_key} >= :pk_value"
 
-            # Query for append-only: WHERE (created_at > ?) OR (created_at = ? AND primary_key >= ?)
+            # Query for append-only: WHERE (order_by_column > ?) OR (order_by_column = ? AND primary_key >= ?)
             query = text(f"""
                 SELECT * FROM {postgres_schema_name}.{table_name}
-                WHERE (created_at > :created_at) OR (created_at = :created_at AND {pk_comparison})
-                ORDER BY created_at ASC, {primary_key} ASC
+                WHERE ({order_by_column} > :order_by_value) OR ({order_by_column} = :order_by_value AND {pk_comparison})
+                ORDER BY {order_by_column} ASC, {primary_key} ASC
             """)
-            query = query.bindparams(created_at=resume_from_created_at, pk_value=resume_from_pk)
+            query = query.bindparams(order_by_value=resume_from_order_by, pk_value=resume_from_pk)
         else:
             # Full export from the beginning
-            query = text(f"SELECT * FROM {postgres_schema_name}.{table_name} ORDER BY created_at ASC, {primary_key} ASC")
+            query = text(f"SELECT * FROM {postgres_schema_name}.{table_name} ORDER BY {order_by_column} ASC, {primary_key} ASC")
 
         if os.getenv('DEBUG_OFFSET'):
             # Override with debug offset if set
-            query = text(f"SELECT * FROM {postgres_schema_name}.{table_name} ORDER BY created_at ASC, {primary_key} ASC OFFSET {os.getenv('DEBUG_OFFSET')}")
+            query = text(f"SELECT * FROM {postgres_schema_name}.{table_name} ORDER BY {order_by_column} ASC, {primary_key} ASC OFFSET {os.getenv('DEBUG_OFFSET')}")
 
         logger.info(f"Executing query for table {table_name}: {query}")
 

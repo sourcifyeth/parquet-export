@@ -5,6 +5,7 @@ tables_config = [
     {
         'name': 'code',
         'primary_key': 'code_hash',
+        'order_by': 'created_at',
         'datatypes': {
             'code_hash': 'object',
             'code': 'object',
@@ -20,6 +21,7 @@ tables_config = [
     {
         'name': 'contracts',
         'primary_key': 'id',
+        'order_by': 'created_at',
         'datatypes': {
             'id': 'string',
             'creation_code_hash': 'object',
@@ -35,6 +37,7 @@ tables_config = [
     {
         'name': 'contract_deployments',
         'primary_key': 'id',
+        'order_by': 'created_at',
         'datatypes': {
             'id': 'string',
             'chain_id': 'Int64',
@@ -55,6 +58,7 @@ tables_config = [
     {
         'name': 'compiled_contracts',
         'primary_key': 'id',
+        'order_by': 'created_at',
         'datatypes': {
             'id': 'string',
             'created_at': 'datetime64[ns]',
@@ -79,6 +83,7 @@ tables_config = [
     {
         'name': 'compiled_contracts_sources',
         'primary_key': 'id',
+        'order_by': 'created_at',
         'datatypes': {
             'id': 'string',
             'compilation_id': 'string',
@@ -92,6 +97,7 @@ tables_config = [
     {
         'name': 'sources',
         'primary_key': 'source_hash',
+        'order_by': 'created_at',
         'datatypes': {
             'source_hash': 'object',
             'source_hash_keccak': 'object',
@@ -107,6 +113,7 @@ tables_config = [
     {
         'name': 'verified_contracts',
         'primary_key': 'id',
+        'order_by': 'created_at',
         'datatypes': {
             'id': 'Int64',
             'created_at': 'datetime64[ns]',
