@@ -276,7 +276,7 @@ def fetch_and_write(table_config, engine):
         # Build query with composite ordering and optional WHERE clause for resuming
         if resume_from_order_by is not None:
             if pk_is_uuid:
-                pk_comparison = f"{primary_key} >= :pk_value::uuid"
+                pk_comparison = f"{primary_key} >= CAST(:pk_value AS uuid)"
             else:
                 pk_comparison = f"{primary_key} >= :pk_value"
 

@@ -1,17 +1,23 @@
 # VerA DB Parquet Export Script - Sourcify fork
 
-Python scripts and Docker container to export the Verifier Alliance PostgreSQL database in Parquet format and upload it to an S3 bucket.
+Python scripts and Docker container to export the Verifier Alliance PostgreSQL database in Parquet format and upload it to Google Cloud Storage.
 This fork provides a modified config to comply with the Sourcify database - which uses a modification of the Verifier Alliance database schema itself.
-
-The latest export is available at [https://export.sourcify.dev](https://export.sourcify.dev).
 
 The export script has undergone a redesign which made it append-only. The new export format is referred to as "v2". See https://github.com/argotorg/sourcify/issues/2441 for details of the redesign.
 
-## Requirements
+## Downloading the public dataset
+
+The latest export is publicly available at [https://export.sourcify.dev](https://export.sourcify.dev).
+
+Please refer to the [Sourcify docs](https://docs.sourcify.dev/docs/repository/sourcify-database/#download) for instructions on how to download and use the Parquet files.
+
+## Running the Export Script
+
+### Requirements
 
 - Python 3
 
-## Installation
+### Installation
 
 Create a virtual environment:
 
@@ -31,7 +37,7 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-## Usage
+### Usage
 
 Run the script with:
 
@@ -72,7 +78,8 @@ In Cloud Run, authentication is automatic via Workload Identity.
 
 The [config.py](./config.py) file contains the configuration for each database table including:
 
-- `primary_key`: The primary key column name (used for append-only ordering)
+- `order_by`: The column to use for ordering data during export (typically `created_at`). Data is sorted by this column, with `primary_key` as a secondary sort for deterministic ordering.
+- `primary_key`: The primary key column name (used as tie-breaker for append-only ordering)
 - `datatypes`: Column type mappings for proper Parquet schema generation
 - `chunk_size`: Number of rows to fetch per database query
 - `num_chunks_per_file`: Number of chunks to write per Parquet file
@@ -83,6 +90,7 @@ Example:
 {
     'name': 'verified_contracts',
     'primary_key': 'id',
+    'order_by': 'created_at',
     'datatypes': {
         'id': 'Int64',
         'created_at': 'datetime64[ns]',
@@ -111,7 +119,7 @@ The files will be named `verified_contracts_0_1000000.parquet`, `verified_contra
 
 Files are stored in GCS under the `v2/{table_name}/` prefix and compressed using zstd.
 
-## Docker
+### Docker
 
 Build the image:
 
@@ -131,4 +139,6 @@ Previously, the export script generated a `manifest.json` file containing metada
 
 For example, this API endpoint lists all available export v2 files with their metadata in XML:
 
-https://export.test.verifieralliance.org/?prefix=v2/
+https://export.staging.sourcify.dev/?prefix=v2/
+
+This API is compatible with the AWS S3 API. Documentation can be found here: https://docs.cloud.google.com/storage/docs/xml-api/get-bucket-list
