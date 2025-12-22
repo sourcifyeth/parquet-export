@@ -2,15 +2,21 @@
 
 Python scripts and Docker container to export the Verifier Alliance PostgreSQL database in Parquet format and upload it to Google Cloud Storage.
 
-The latest export is publicly available at [https://export.verifieralliance.org](https://export.verifieralliance.org).
-
 The export script has undergone a redesign which made it append-only. The new export format is referred to as "v2". See https://github.com/argotorg/sourcify/issues/2441 for details of the redesign.
 
-## Requirements
+## Downloading the public dataset
+
+The latest export is publicly available at [https://export.verifieralliance.org](https://export.verifieralliance.org).
+
+Please refer to the [VerA docs](https://verifieralliance.org/docs/download) for instructions on how to download and use the Parquet files.
+
+## Running the Export Script
+
+### Requirements
 
 - Python 3
 
-## Installation
+### Installation
 
 Create a virtual environment:
 
@@ -30,7 +36,7 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-## Usage
+### Usage
 
 Run the script with:
 
@@ -112,7 +118,7 @@ The files will be named `verified_contracts_0_1000000.parquet`, `verified_contra
 
 Files are stored in GCS under the `v2/{table_name}/` prefix and compressed using zstd.
 
-## Docker
+### Docker
 
 Build the image:
 
@@ -133,3 +139,5 @@ Previously, the export script generated a `manifest.json` file containing metada
 For example, this API endpoint lists all available export v2 files with their metadata in XML:
 
 https://export.test.verifieralliance.org/?prefix=v2/
+
+This API is compatible with the AWS S3 API. Documentation can be found here: https://docs.cloud.google.com/storage/docs/xml-api/get-bucket-list
