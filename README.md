@@ -71,7 +71,8 @@ In Cloud Run, authentication is automatic via Workload Identity.
 
 The [config.py](./config.py) file contains the configuration for each database table including:
 
-- `primary_key`: The primary key column name (used for append-only ordering)
+- `order_by`: The column to use for ordering data during export (typically `created_at`). Data is sorted by this column, with `primary_key` as a secondary sort for deterministic ordering.
+- `primary_key`: The primary key column name (used as tie-breaker for append-only ordering)
 - `datatypes`: Column type mappings for proper Parquet schema generation
 - `chunk_size`: Number of rows to fetch per database query
 - `num_chunks_per_file`: Number of chunks to write per Parquet file
@@ -82,6 +83,7 @@ Example:
 {
     'name': 'verified_contracts',
     'primary_key': 'id',
+    'order_by': 'created_at',
     'datatypes': {
         'id': 'Int64',
         'created_at': 'datetime64[ns]',
