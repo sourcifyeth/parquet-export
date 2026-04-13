@@ -352,7 +352,6 @@ def write_stats_json(engine, bucket_name):
     """
     After all table exports complete, compute parquet sizes (from GCS) and
     Postgres table/DB sizes, then upload a stats.json to v2/stats.json.
-    Errors are logged but do not fail the job.
     """
     logger.info("Computing export stats for stats.json")
     try:
@@ -417,7 +416,8 @@ def write_stats_json(engine, bucket_name):
         logger.info(f"Successfully uploaded v2/stats.json to gs://{bucket_name}/v2/stats.json")
 
     except Exception as e:
-        logger.error(f"Error writing stats.json (non-fatal): {e}")
+        logger.error(f"Error writing stats.json: {e}")
+        raise
 
 
 if __name__ == "__main__":
